@@ -1,0 +1,28 @@
+.idea/
+build/
+
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+my_tests/*.npz
+my_tests/*.pth
+my_tests/*.onnx
+my_tests/*.bin
+my_tests/*.param
+my_tests/*_ncnn.py
+my_tests/*_pnnx.py
+tools/pnnx/tests/ncnn/*ncnn.py
+tools/pnnx/tests/ncnn/*pnnx.py
+tools/pnnx/tests/ncnn/*.bin
+tools/pnnx/tests/ncnn/*.param
+
+*/1111.jpg
+*/1112.jpg
+
+*.pt
+*.zip

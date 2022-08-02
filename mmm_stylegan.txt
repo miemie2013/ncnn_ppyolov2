@@ -1,0 +1,18 @@
+
+
+
+
+Square层和Rsqrt层照抄了Swish层，Swish层没有遍历D维，导致Square层和Rsqrt层没有遍历D维，现在已经修复。
+请检查所有的自定义层是否有此bug
+
+
+
+
+fp16浮点数溢出，导致计算结果不正确时，
+
+opt.use_fp16_storage = false;
+
+
+
+
+

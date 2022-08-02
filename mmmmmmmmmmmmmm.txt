@@ -1,0 +1,114 @@
+
+
+安装依赖：
+sudo apt install build-essential
+
+sudo apt install git
+
+sudo apt install cmake
+
+sudo apt install libprotobuf-dev
+
+sudo apt install protobuf-compiler
+
+sudo apt install libvulkan-dev
+
+sudo apt install vulkan-utils
+
+sudo apt install libopencv-dev
+
+
+安装libopencv-dev可能报错
+E: 无法下载...
+请看教程：
+https://blog.csdn.net/weixin_42238876/article/details/106220957
+软件和更新->Ubuntu软件->下载自：选择阿里云。
+
+
+
+sudo apt install build-essential git cmake libprotobuf-dev protobuf-compiler libvulkan-dev vulkan-utils libopencv-dev
+
+
+
+vulkan:
+wget https://sdk.lunarg.com/sdk/download/1.2.189.0/linux/vulkansdk-linux-x86_64-1.2.189.0.tar.gz?Human=true -O vulkansdk-linux-x86_64-1.2.189.0.tar.gz
+tar -xf vulkansdk-linux-x86_64-1.2.189.0.tar.gz
+
+
+sudo gedit ~/.bashrc
+
+
+export PYTHON_HOME=~/anaconda3
+export CUDA_HOME=/usr/local/cuda-10.2
+export PATH=${PYTHON_HOME}/bin:${CUDA_HOME}/bin:$PATH
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CUDA_HOME}/lib64
+export TENSORRT_HOME=~/TensorRT-8.0.1.6
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${TENSORRT_HOME}/lib
+export PYTHON_EXECUTABLE=~/anaconda3/bin
+export VULKAN_SDK=~/1.2.189.0/x86_64
+export PATH=${VULKAN_SDK}/bin:$PATH
+
+
+source ~/.bashrc
+
+
+输入命令
+vulkaninfo
+
+
+或者
+vulkaninfo | grep deviceType
+
+
+打印出信息，表示安装成功。
+
+
+ncnn安装教程
+https://blog.csdn.net/weixin_43541325/article/details/117412417
+
+
+(6.5)
+https://zhuanlan.zhihu.com/p/431833958
+
+编译pnnx
+
+cd ..
+cd tools/pnnx
+mkdir build
+cd build
+
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install -DTorch_INSTALL_DIR="~/libtorch" ..
+
+cmake --build . -j 2
+
+cmake --build . --target install
+
+cp -r ~/libtorch/lib/*.so ~/GitHub/ncnn2/tools/pnnx/build/install/bin
+cp -r ~/libtorch/lib/*.so.1 ~/GitHub/ncnn2/tools/pnnx/build/install/bin
+
+
+
+
+跑示例：
+cd ncnn
+mkdir -p build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DNCNN_VULKAN=ON -DNCNN_SYSTEM_GLSLANG=ON -DNCNN_BUILD_EXAMPLES=ON ..
+make -j$(nproc)
+
+
+
+cd ../examples
+../build/examples/squeezenet ../images/256-ncnn.png
+
+
+
+cd examples
+../build/examples/squeezenet ../images/000000000019.jpg
+
+
+../build/examples/squeezenet ../images/dog.jpg
+
+
+
+
