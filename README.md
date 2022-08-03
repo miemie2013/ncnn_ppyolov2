@@ -2,7 +2,7 @@
 # ncnn
 
 ## 概述
-ncnn实现PPYOLOv2和PPYOLO！
+ncnn实现PPYOLOv2和PPYOLO！这是ncnn第一个支持可变形卷积和MatrixNMS的模型，PPYOLO和PPYOLOv2的导出部署非常困难，因为它们使用了可变形卷积、MatrixNMS等对部署不太友好的算子。但现在咩酱在ncnn中实现了可变形卷积DCNv2、CoordConcat、PPYOLODecodeMatrixNMS等自定义层，使得使用ncnn部署PPYOLO和PPYOLOv2成为了可能！其中的[可变形卷积层](https://github.com/Tencent/ncnn/pull/4070) 也已经被合入ncnn官方仓库。
 
 开源摘星计划（WeOpen Star） 是由腾源会 2022 年推出的全新项目，旨在为开源人提供成长激励，为开源项目提供成长支持，助力开发者更好地了解开源，更快地跨越鸿沟，参与到开源的具体贡献与实践中。
 
@@ -22,7 +22,7 @@ ncnn贡献指南: https://github.com/weopenprojects/WeOpen-Star/issues/27
 按照官方[how-to-build](https://github.com/Tencent/ncnn/wiki/how-to-build) 文档进行编译ncnn。
 
 编译完成后，
-将上文得到的ppyolov2_r50vd_365e.param、ppyolov2_r50vd_365e.bin、...这些文件复制到ncnn_ppyolov2的build/examples/目录下，最后在ncnn_ppyolov2根目录下运行以下命令进行ppyolov2的预测：
+将导出的ppyolov2_r50vd_365e.param、ppyolov2_r50vd_365e.bin、...这些文件复制到ncnn_ppyolov2的build/examples/目录下，最后在ncnn_ppyolov2根目录下运行以下命令进行ppyolov2的预测：
 
 ```
 cd build/examples
