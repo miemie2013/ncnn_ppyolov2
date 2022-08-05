@@ -17,6 +17,7 @@
 #include "layer_type.h"
 #include "modelbin.h"
 #include "paramdict.h"
+#include "benchmark.h"
 
 #include <algorithm>
 #if defined(USE_NCNN_SIMPLEOCV)
@@ -264,6 +265,9 @@ static void nms_sorted_bboxes(const std::vector<Object>& faceobjects, std::vecto
 
 
 
+static int g_warmup_loop_count = 8;
+static int g_loop_count = 4;
+static bool g_enable_cooling_down = true;
 
 static int detect_PPYOLOE(const cv::Mat& bgr, std::vector<Object>& objects, const char* param_path, const char* bin_path)
 {
@@ -292,6 +296,74 @@ static int detect_PPYOLOE(const cv::Mat& bgr, std::vector<Object>& objects, cons
     const float norm_vals[3] = {1.0f/58.395f, 1.0f/57.12f, 1.0f/57.375f};
     in_resize.substract_mean_normalize(mean_vals, norm_vals);
 
+    if (g_enable_cooling_down)
+    {
+        // sleep 2 seconds for cooling down SOC  :(
+#ifdef _WIN32
+        Sleep(2 * 1000);
+#elif defined(__unix__) || defined(__APPLE__)
+        sleep(2);
+#elif _POSIX_TIMERS
+        struct timespec ts;
+        ts.tv_sec = 2;
+        ts.tv_nsec = 0;
+        nanosleep(&ts, &ts);
+#else
+        // TODO How to handle it ?
+#endif
+    }
+
+    ncnn::Mat cls_score;  // python中的形状是[N, A, 80], ncnn中C=1, H=A=预测框数, W=80
+    ncnn::Mat reg_dist;   // python中的形状是[N, A,  4], ncnn中C=1, H=A=预测框数, W= 4
+
+    // warm up
+    for (int i = 0; i < g_warmup_loop_count; i++)
+    {
+        ncnn::Extractor ex = model.create_extractor();
+        ex.input("images", in_resize);
+        ex.extract("cls_score", cls_score);
+        ex.extract("reg_dist", reg_dist);
+        std::vector<Object> temp_proposals;
+        generate_ppyoloe_proposals(cls_score, reg_dist, scale_x, scale_y, CONF_THRESH, temp_proposals);
+        qsort_descent_inplace(temp_proposals);
+        std::vector<int> picked;
+        nms_sorted_bboxes(temp_proposals, picked, NMS_THRESH);
+    }
+
+    double time_min = DBL_MAX;
+    double time_max = -DBL_MAX;
+    double time_avg = 0;
+
+    for (int i = 0; i < g_loop_count; i++)
+    {
+        double start = ncnn::get_current_time();
+
+        {
+            ncnn::Extractor ex = model.create_extractor();
+            ex.input("images", in_resize);
+            ex.extract("cls_score", cls_score);
+            ex.extract("reg_dist", reg_dist);
+            std::vector<Object> temp_proposals;
+            generate_ppyoloe_proposals(cls_score, reg_dist, scale_x, scale_y, CONF_THRESH, temp_proposals);
+            qsort_descent_inplace(temp_proposals);
+            std::vector<int> picked;
+            nms_sorted_bboxes(temp_proposals, picked, NMS_THRESH);
+        }
+
+        double end = ncnn::get_current_time();
+
+        double time = end - start;
+
+        time_min = std::min(time_min, time);
+        time_max = std::max(time_max, time);
+        time_avg += time;
+    }
+
+    time_avg /= g_loop_count;
+
+    printf("%s spend time:  min = %7.2f  max = %7.2f  avg = %7.2f\n", param_path, time_min, time_max, time_avg);
+
+
     ncnn::Extractor ex = model.create_extractor();
 
     ex.input("images", in_resize);
@@ -306,10 +378,7 @@ static int detect_PPYOLOE(const cv::Mat& bgr, std::vector<Object>& objects, cons
 
     std::vector<Object> proposals;
 
-
     {
-        ncnn::Mat cls_score;  // python中的形状是[N, A, 80], ncnn中C=1, H=A=预测框数, W=80
-        ncnn::Mat reg_dist;   // python中的形状是[N, A,  4], ncnn中C=1, H=A=预测框数, W= 4
         ex.extract("cls_score", cls_score);
         ex.extract("reg_dist", reg_dist);
         generate_ppyoloe_proposals(cls_score, reg_dist, scale_x, scale_y, CONF_THRESH, proposals);
