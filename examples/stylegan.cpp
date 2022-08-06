@@ -1615,15 +1615,15 @@ static int stylegan_gen(const char* z0_path, const char* mapping_param_path, con
     ncnn::Net mapping;
     ncnn::Net synthesis;
 
-//    mapping.opt.use_vulkan_compute = true;
-//    synthesis.opt.use_vulkan_compute = true;
+    mapping.opt.use_vulkan_compute = true;
+    synthesis.opt.use_vulkan_compute = true;
 
-    mapping.opt.use_vulkan_compute = false;
+//    mapping.opt.use_vulkan_compute = false;
     mapping.opt.use_fp16_storage = false;
     mapping.opt.use_fp16_packed = false;
     mapping.opt.use_fp16_storage = false;
     mapping.opt.use_fp16_arithmetic = false;
-    synthesis.opt.use_vulkan_compute = false;
+//    synthesis.opt.use_vulkan_compute = false;
     synthesis.opt.use_fp16_storage = false;
     synthesis.opt.use_fp16_packed = false;
     synthesis.opt.use_fp16_storage = false;
@@ -1738,15 +1738,15 @@ static int style_mixing(const char* z0_path, const char* z1_path, const char* ma
     ncnn::Net mapping;
     ncnn::Net synthesis;
 
-//    mapping.opt.use_vulkan_compute = true;
-//    synthesis.opt.use_vulkan_compute = true;
+    mapping.opt.use_vulkan_compute = true;
+    synthesis.opt.use_vulkan_compute = true;
 
-    mapping.opt.use_vulkan_compute = false;
+//    mapping.opt.use_vulkan_compute = false;
     mapping.opt.use_fp16_storage = false;
     mapping.opt.use_fp16_packed = false;
     mapping.opt.use_fp16_storage = false;
     mapping.opt.use_fp16_arithmetic = false;
-    synthesis.opt.use_vulkan_compute = false;
+//    synthesis.opt.use_vulkan_compute = false;
     synthesis.opt.use_fp16_storage = false;
     synthesis.opt.use_fp16_packed = false;
     synthesis.opt.use_fp16_storage = false;
@@ -1898,15 +1898,15 @@ static int A2B(const char* z0_path, const char* z1_path, const char* mapping_par
     ncnn::Net mapping;
     ncnn::Net synthesis;
 
-//    mapping.opt.use_vulkan_compute = true;
-//    synthesis.opt.use_vulkan_compute = true;
+    mapping.opt.use_vulkan_compute = true;
+    synthesis.opt.use_vulkan_compute = true;
 
-    mapping.opt.use_vulkan_compute = false;
+//    mapping.opt.use_vulkan_compute = false;
     mapping.opt.use_fp16_storage = false;
     mapping.opt.use_fp16_packed = false;
     mapping.opt.use_fp16_storage = false;
     mapping.opt.use_fp16_arithmetic = false;
-    synthesis.opt.use_vulkan_compute = false;
+//    synthesis.opt.use_vulkan_compute = false;
     synthesis.opt.use_fp16_storage = false;
     synthesis.opt.use_fp16_packed = false;
     synthesis.opt.use_fp16_storage = false;

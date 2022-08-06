@@ -93,7 +93,9 @@ cp -r ~/libtorch/lib/*.so.1 ~/GitHub/ncnn2/tools/pnnx/build/install/bin
 cd ncnn
 mkdir -p build
 cd build
+
 cmake -DCMAKE_BUILD_TYPE=Release -DNCNN_VULKAN=ON -DNCNN_SYSTEM_GLSLANG=ON -DNCNN_BUILD_EXAMPLES=ON ..
+
 make -j$(nproc)
 
 

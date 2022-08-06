@@ -19,6 +19,13 @@
 #include "paramdict.h"
 #include "benchmark.h"
 
+#ifdef _WIN32
+#include <algorithm>
+#include <windows.h> // Sleep()
+#else
+#include <unistd.h> // sleep()
+#endif
+
 #include <algorithm>
 #if defined(USE_NCNN_SIMPLEOCV)
 #include "simpleocv.h"
