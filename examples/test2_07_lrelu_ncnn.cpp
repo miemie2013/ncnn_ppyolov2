@@ -66,16 +66,17 @@ void save_data(const ncnn::Mat& m)
     }
 }
 
-void print_shape(const ncnn::Mat& m, const char* name)
+static void print_shape(const ncnn::Mat& m, const char* name)
 {
+    int dims = m.dims;
     int C = m.c;
     int D = m.d;
     int H = m.h;
     int W = m.w;
-    printf("%s shape C=%d\n", name, C);
-    printf("D=%d\n", D);
-    printf("H=%d\n", H);
-    printf("W=%d\n", W);
+    size_t elemsize = m.elemsize;
+    int elempack = m.elempack;
+    size_t cstep = m.cstep;
+    printf("%s shape dims=%d, C=%d, D=%d, H=%d, W=%d, elemsize=%d, elempack=%d, cstep=%d\n", name, dims, C, D, H, W, (int)elemsize, elempack, (int)cstep);
 }
 
 

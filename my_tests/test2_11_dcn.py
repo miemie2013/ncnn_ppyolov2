@@ -8,6 +8,7 @@ import collections
 from itertools import repeat
 import cv2
 import numpy as np
+import struct
 import ncnn_utils as ncnn_utils
 
 
@@ -326,8 +327,72 @@ class ConvNormLayer2(nn.Module):
         return out
 
 
-ch_in = 3
-ch_out = 64
+img_h = 2
+img_w = 2
+
+img_h = 8
+img_w = 8
+
+
+
+
+
+# ch_in = 3
+# ch_out = 64
+
+ch_in = 1
+ch_out = 1
+
+# ch_in = 1
+# ch_out = 4
+
+# ch_in = 1
+# ch_out = 8
+
+# ch_in = 1
+# ch_out = 16
+
+# ch_in = 4
+# ch_out = 1
+
+# ch_in = 4
+# ch_out = 4
+
+ch_in = 4
+ch_out = 8
+
+# ch_in = 4
+# ch_out = 16
+
+# ch_in = 8
+# ch_out = 1
+
+# ch_in = 8
+# ch_out = 4
+
+# ch_in = 8
+# ch_out = 8
+
+# ch_in = 8
+# ch_out = 16
+#
+# ch_in = 16
+# ch_out = 1
+#
+# ch_in = 16
+# ch_out = 4
+#
+# ch_in = 16
+# ch_out = 8
+#
+# ch_in = 16
+# ch_out = 16
+
+
+
+ch_in *= 3
+ch_out *= 3
+
 
 filter_size = 1
 stride = 1
@@ -341,11 +406,11 @@ stride = 1
 # filter_size = 2
 # stride = 2
 
-filter_size = 3
-stride = 1
-
 # filter_size = 3
-# stride = 2
+# stride = 1
+
+filter_size = 3
+stride = 2
 
 # filter_size = 4
 # stride = 1
@@ -436,10 +501,10 @@ with open('11_pncnn.param', 'w', encoding='utf-8') as f:
 
 
 
-aaaaaaaaa = cv2.imread('my_test32.jpg')
+# aaaaaaaaa = cv2.imread('my_test32.jpg')
 # aaaaaaaaa = cv2.imread('my_test9_7.jpg')
 # aaaaaaaaa = cv2.imread('my_test5_3.jpg')
-# aaaaaaaaa = cv2.imread('my_test2.jpg')
+aaaaaaaaa = cv2.imread('my_test2.jpg')
 aaaaaaaaa = aaaaaaaaa.astype(np.float32)
 
 mean = [117.3, 126.5, 130.2]
@@ -456,6 +521,10 @@ x = x.permute((2, 0, 1))
 x = torch.unsqueeze(x, 0)
 x.requires_grad_(False)
 
+
+dummy_input = torch.randn(1, ch_in, img_h, img_w)
+x = dummy_input
+
 # offset, mask, y = model(x)
 y = model(x)
 y2 = model2(x)
@@ -464,6 +533,18 @@ dic['y'] = y.cpu().detach().numpy()
 # dic['offset'] = offset.cpu().detach().numpy()
 # dic['mask'] = mask.cpu().detach().numpy()
 
+
+aaa = dic['x']
+print(aaa)
+aaa = np.reshape(aaa, (-1, ))
+print(aaa)
+
+seed_bin = open('../build/examples/in0.bin', 'wb')
+s = struct.pack('i', 0)
+seed_bin.write(s)
+for i1 in range(aaa.shape[0]):
+    s = struct.pack('f', aaa[i1])
+    seed_bin.write(s)
 
 
 yyy1 = y.cpu().detach().numpy()

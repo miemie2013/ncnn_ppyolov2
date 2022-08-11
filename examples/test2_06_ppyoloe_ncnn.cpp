@@ -89,18 +89,17 @@ void save_data(const ncnn::Mat& m, char* name)
     }
 }
 
-void print_shape(const ncnn::Mat& m, const char* name)
+static void print_shape(const ncnn::Mat& m, const char* name)
 {
     int dims = m.dims;
     int C = m.c;
     int D = m.d;
     int H = m.h;
     int W = m.w;
-    printf("%s shape dims=%d\n", name, dims);
-    printf("C=%d\n", C);
-    printf("D=%d\n", D);
-    printf("H=%d\n", H);
-    printf("W=%d\n", W);
+    size_t elemsize = m.elemsize;
+    int elempack = m.elempack;
+    size_t cstep = m.cstep;
+    printf("%s shape dims=%d, C=%d, D=%d, H=%d, W=%d, elemsize=%d, elempack=%d, cstep=%d\n", name, dims, C, D, H, W, (int)elemsize, elempack, (int)cstep);
 }
 
 static void generate_ppyoloe_proposals(const ncnn::Mat& cls_score, const ncnn::Mat& reg_dist, float scale_x, float scale_y, float prob_threshold, std::vector<Object>& objects)
@@ -272,29 +271,40 @@ static void nms_sorted_bboxes(const std::vector<Object>& faceobjects, std::vecto
 
 
 
-static int g_warmup_loop_count = 8;
-static int g_loop_count = 4;
+static int g_warmup_loop_count = 10;
+static int g_loop_count = 20;
 static bool g_enable_cooling_down = true;
 
-static int detect_PPYOLOE(const cv::Mat& bgr, std::vector<Object>& objects, const char* param_path, const char* bin_path)
+static int detect(const cv::Mat& bgr, std::vector<Object>& objects, const char* param_path, const char* bin_path, const int target_size, const int use_vulkan_compute, const int use_packing_layout, const int use_sgemm_convolution)
 {
     ncnn::Net model;
+    printf("num_threads=%d\n", model.opt.num_threads);
+    printf("use_packing_layout=%d\n", model.opt.use_packing_layout);
+    printf("use_fp16_packed=%d\n", model.opt.use_fp16_packed);
+    printf("use_fp16_storage=%d\n", model.opt.use_fp16_storage);
+    printf("use_fp16_arithmetic=%d\n", model.opt.use_fp16_arithmetic);
+    printf("use_shader_pack8=%d\n", model.opt.use_shader_pack8);
+    printf("use_image_storage=%d\n", model.opt.use_image_storage);
 
-    model.opt.use_vulkan_compute = true;
+    model.opt.use_vulkan_compute = use_vulkan_compute;
+    model.opt.use_packing_layout = use_packing_layout;
+    model.opt.use_sgemm_convolution = use_sgemm_convolution;
+
+//    model.register_custom_layer("CoordConcat", CoordConcat_layer_creator);
 
     model.load_param(param_path);
     model.load_model(bin_path);
 
     int img_w = bgr.cols;
     int img_h = bgr.rows;
-    float scale_x = (float)TARGET_SIZE / img_w;
-    float scale_y = (float)TARGET_SIZE / img_h;
+    float scale_x = (float)target_size / img_w;
+    float scale_y = (float)target_size / img_h;
 
     // get ncnn::Mat with RGB format like PPYOLOE do.
     ncnn::Mat in_rgb = ncnn::Mat::from_pixels(bgr.data, ncnn::Mat::PIXEL_BGR2RGB, bgr.cols, bgr.rows);
     ncnn::Mat in_resize;
     // Interp image with cv2.INTER_CUBIC like PPYOLOE do.
-    ncnn::resize_bicubic(in_rgb, in_resize, TARGET_SIZE, TARGET_SIZE);
+    ncnn::resize_bicubic(in_rgb, in_resize, target_size, target_size);
 
     // Normalize image with the same mean and std like PPYOLOE do.
 //    mean=[123.675, 116.28, 103.53]
@@ -477,12 +487,18 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
 
 int main(int argc, char** argv)
 {
-    if (argc != 4)
-    {
-        fprintf(stderr, "Usage: %s [imagepath]\n", argv[0]);
-        return -1;
-    }
+/*
+cd build/examples
 
+./test2_06_ppyoloe_ncnn ../../my_tests/000000013659.jpg ppyoloe_crn_s_300e_coco.param ppyoloe_crn_s_300e_coco.bin 640 0 1 1 1
+
+./test2_06_ppyoloe_ncnn ../../my_tests/000000013659.jpg ppyoloe_crn_m_300e_coco.param ppyoloe_crn_m_300e_coco.bin 640 0 1 1 1
+
+./test2_06_ppyoloe_ncnn ../../my_tests/000000013659.jpg ppyoloe_crn_l_300e_coco.param ppyoloe_crn_l_300e_coco.bin 640 0 1 1 1
+
+./test2_06_ppyoloe_ncnn ../../my_tests/000000013659.jpg ppyoloe_crn_x_300e_coco.param ppyoloe_crn_x_300e_coco.bin 640 0 1 1 1
+
+*/
     const char* imagepath = argv[1];
     const char* param_path = argv[2];
     const char* bin_path = argv[3];
@@ -493,10 +509,34 @@ int main(int argc, char** argv)
         fprintf(stderr, "cv::imread %s failed\n", imagepath);
         return -1;
     }
-
     std::vector<Object> objects;
-    detect_PPYOLOE(m, objects, param_path, bin_path);
-    draw_objects(m, objects);
+
+    if (argc == 4)
+    {
+        int target_size = TARGET_SIZE;
+        detect(m, objects, param_path, bin_path, target_size, 1, 1, 1);
+        draw_objects(m, objects);
+    }
+    else if (argc == 5)
+    {
+        int target_size = atoi(argv[4]);
+        detect(m, objects, param_path, bin_path, target_size, 1, 1, 1);
+        draw_objects(m, objects);
+    }
+    else
+    {
+        int target_size = atoi(argv[4]);
+        int draw_obj = atoi(argv[5]);
+        int use_vulkan_compute = atoi(argv[6]);
+        int use_packing_layout = atoi(argv[7]);
+        int use_sgemm_convolution = atoi(argv[8]);
+
+        detect(m, objects, param_path, bin_path, target_size, use_vulkan_compute, use_packing_layout, use_sgemm_convolution);
+        if (draw_obj)
+        {
+            draw_objects(m, objects);
+        }
+    }
 
     return 0;
 }

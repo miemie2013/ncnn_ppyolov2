@@ -17,6 +17,14 @@
 #include "layer_type.h"
 #include "modelbin.h"
 #include "paramdict.h"
+#include "benchmark.h"
+
+#ifdef _WIN32
+#include <algorithm>
+#include <windows.h> // Sleep()
+#else
+#include <unistd.h> // sleep()
+#endif
 
 #include <algorithm>
 #if defined(USE_NCNN_SIMPLEOCV)
@@ -24,9 +32,11 @@
 #else
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #endif
 #include <stdio.h>
 #include <vector>
+#include <math.h>
 
 void pretty_print(const ncnn::Mat& m)
 {
@@ -66,18 +76,17 @@ void save_data(const ncnn::Mat& m, char* name)
     }
 }
 
-void print_shape(const ncnn::Mat& m, const char* name)
+static void print_shape(const ncnn::Mat& m, const char* name)
 {
     int dims = m.dims;
     int C = m.c;
     int D = m.d;
     int H = m.h;
     int W = m.w;
-    printf("%s shape dims=%d\n", name, dims);
-    printf("C=%d\n", C);
-    printf("D=%d\n", D);
-    printf("H=%d\n", H);
-    printf("W=%d\n", W);
+    size_t elemsize = m.elemsize;
+    int elempack = m.elempack;
+    size_t cstep = m.cstep;
+    printf("%s shape dims=%d, C=%d, D=%d, H=%d, W=%d, elemsize=%d, elempack=%d, cstep=%d\n", name, dims, C, D, H, W, (int)elemsize, elempack, (int)cstep);
 }
 
 
@@ -108,214 +117,36 @@ static float DmcnIm2colBilinear(const float* bottom_data, const int data_width, 
 }
 
 
-class DeformableConv2d : public ncnn::Layer
+static int g_warmup_loop_count = 8;
+static int g_loop_count = 4;
+static bool g_enable_cooling_down = true;
+
+static int detect_squeezenet(const cv::Mat& bgr, const char* param_path, const char* bin_path)
 {
-public:
-    DeformableConv2d()
-    {
-        // miemie2013: if num of input tensors > 1 or num of output tensors > 1, you must set one_blob_only = false
-        // And ncnn will use forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) method
-        // or forward_inplace(std::vector<Mat>& bottom_top_blobs, const Option& opt) method
-        one_blob_only = false;
-        support_inplace = false;
-    }
+//    opts[3].use_packing_layout = true;
+//    opts[3].use_fp16_packed = true;
+//    opts[3].use_fp16_storage = true;
+//    opts[3].use_fp16_arithmetic = false; // FIXME enable me
+//    opts[3].use_bf16_storage = false;
+//    opts[3].use_shader_pack8 = true;
+//    opts[3].use_image_storage = true;
+//    opts[3].blob_allocator = &g_blob_pool_allocator;
+//    opts[3].workspace_allocator = &g_workspace_pool_allocator;
 
-    virtual int load_param(const ncnn::ParamDict& pd)
-    {
-        num_output = pd.get(0, 0);
-        kernel_w = pd.get(1, 0);
-        kernel_h = pd.get(11, kernel_w);
-        dilation_w = pd.get(2, 1);
-        dilation_h = pd.get(12, dilation_w);
-        stride_w = pd.get(3, 1);
-        stride_h = pd.get(13, stride_w);
-        pad_left = pd.get(4, 0);
-        pad_right = pd.get(15, pad_left);
-        pad_top = pd.get(14, pad_left);
-        pad_bottom = pd.get(16, pad_top);
-        bias_term = pd.get(5, 0);
-        weight_data_size = pd.get(6, 0);
-        activation_type = pd.get(9, 0);
-        activation_params = pd.get(10, ncnn::Mat());
-        return 0;
-    }
-
-    virtual int load_model(const ncnn::ModelBin& mb)
-    {
-        weight_data = mb.load(weight_data_size, 0);
-        if (weight_data.empty())
-            return -100;
-
-        if (bias_term)
-        {
-            bias_data = mb.load(num_output, 1);
-            if (bias_data.empty())
-                return -100;
-        }
-
-        const int in_c = weight_data_size / (num_output * kernel_h * kernel_w);
-        const int M = in_c * kernel_h * kernel_w;
-        weight_data = weight_data.reshape(M, num_output);
-        return 0;
-    }
-
-    virtual int forward(const std::vector<ncnn::Mat>& bottom_blobs, std::vector<ncnn::Mat>& top_blobs, const ncnn::Option& opt) const
-    {
-        const ncnn::Mat& bottom_blob = bottom_blobs[0];
-        const ncnn::Mat& offset = bottom_blobs[1];
-        const ncnn::Mat& mask = bottom_blobs[2];
-
-        const int w = bottom_blob.w;
-        const int h = bottom_blob.h;
-        const int in_c = bottom_blob.c;
-        const size_t elemsize = bottom_blob.elemsize;
-
-        const int kernel_extent_w = dilation_w * (kernel_w - 1) + 1;
-        const int kernel_extent_h = dilation_h * (kernel_h - 1) + 1;
-
-        const int out_w = (w + pad_left + pad_right - kernel_extent_w) / stride_w + 1;
-        const int out_h = (h + pad_top + pad_bottom - kernel_extent_h) / stride_h + 1;
-
-        // output = im2col matmul weight, im2col.shape is [out_h * out_w, in_c * kernel_h * kernel_w] (in python),
-        // weight.shape is [num_output, in_c * kernel_h * kernel_w] (in python),
-        // output.shape is [out_h * out_w, num_output] (in python).
-        ncnn::Mat im2col;
-        im2col.create(out_h * out_w * in_c * kernel_h * kernel_w, elemsize, opt.blob_allocator);
-        if (im2col.empty())
-            return -100;
-
-        ncnn::Mat& output = top_blobs[0];
-        output.create(num_output, out_h * out_w, elemsize, opt.blob_allocator);
-        if (output.empty())
-            return -100;
-
-        ncnn::Mat bottom_blob_flatten = bottom_blob.reshape(w * h * in_c);
-        ncnn::Mat offset_flatten = offset.reshape(offset.w * offset.h * offset.c);
-        ncnn::Mat mask_flatten = mask.reshape(mask.w * mask.h * mask.c);
-        const float* data_im_ptr = bottom_blob_flatten;
-        const float* data_offset_ptr = offset_flatten;
-        const float* data_mask_ptr = mask_flatten;
-        float* im2col_ptr = im2col;
-
-        // im2col
-        #pragma omp parallel for num_threads(opt.num_threads)
-        for (int c_im = 0; c_im < in_c; c_im++)
-        {
-            for (int h_col = 0; h_col < out_h; h_col++)
-            {
-                for (int w_col = 0; w_col < out_w; w_col++)
-                {
-                    int c_col = c_im * kernel_h * kernel_w;
-                    int h_in = h_col * stride_h - pad_top;
-                    int w_in = w_col * stride_w - pad_left;
-                    float* data_col_ptr = im2col_ptr + (h_col * out_w + w_col) * in_c * kernel_h * kernel_w + c_col;
-                    const float* data_im_channel_ptr = data_im_ptr + c_im * h * w;
-                    for (int i = 0; i < kernel_h; i++)
-                    {
-                        for (int j = 0; j < kernel_w; j++)
-                        {
-                            const int data_offset_h_ptr = (((i * kernel_w + j) * 2) * out_h + h_col) * out_w + w_col;
-                            const int data_offset_w_ptr = (((i * kernel_w + j) * 2 + 1) * out_h + h_col) * out_w + w_col;
-                            const int data_mask_hw_ptr = ((i * kernel_w + j) * out_h + h_col) * out_w + w_col;
-
-                            const float offset_h = data_offset_ptr[data_offset_h_ptr];
-                            const float offset_w = data_offset_ptr[data_offset_w_ptr];
-                            const float mask_ = data_mask_ptr[data_mask_hw_ptr];
-                            float val = 0.f;
-                            const float h_im = h_in + i * dilation_h + offset_h;
-                            const float w_im = w_in + j * dilation_w + offset_w;
-                            if (h_im > -1 && w_im > -1 && h_im < h && w_im < w) {
-                                val = DmcnIm2colBilinear(data_im_channel_ptr, w, h, w, h_im, w_im);
-                            }
-                            *data_col_ptr = val * mask_;
-                            data_col_ptr += 1;
-                        }
-                    }
-                }
-            }
-        }
-        im2col = im2col.reshape(in_c * kernel_h * kernel_w, out_h * out_w);
-
-        // call InnerProduct
-        ncnn::Layer* innerProduct = ncnn::create_layer(ncnn::LayerType::InnerProduct);
-
-        // set param
-        ncnn::ParamDict pd;
-        pd.set(0, num_output);
-        pd.set(1, bias_term);
-        pd.set(2, weight_data_size);
-        pd.set(9, activation_type);
-        pd.set(10, activation_params);
-        innerProduct->load_param(pd);
-
-        // set weights
-        ncnn::Mat weights[2];
-        weights[0] = weight_data;
-        if (bias_term)
-        {
-            weights[1] = bias_data;
-        }
-        innerProduct->load_model(ncnn::ModelBinFromMatArray(weights));
-        innerProduct->create_pipeline(opt);
-
-        // forward
-        innerProduct->forward(im2col, output, opt);
-        innerProduct->destroy_pipeline(opt);
-        delete innerProduct;
-
-        ncnn::Mat output_t;
-        // call Permute
-        ncnn::Layer* permute = ncnn::create_layer(ncnn::LayerType::Permute);
-
-        // set param
-        ncnn::ParamDict permute_pd;
-        permute_pd.set(0, 1);
-        permute->load_param(permute_pd);
-        permute->create_pipeline(opt);
-        // forward
-        permute->forward(output, output_t, opt);
-        permute->destroy_pipeline(opt);
-        delete permute;
-        output_t = output_t.reshape(out_w, out_h, num_output);
-        top_blobs[0] = output_t;
-        return 0;
-    }
-public:
-    // param
-    int num_output;
-    int kernel_w;
-    int kernel_h;
-    int dilation_w;
-    int dilation_h;
-    int stride_w;
-    int stride_h;
-    int pad_left; // -233=SAME_UPPER -234=SAME_LOWER
-    int pad_right;
-    int pad_top;
-    int pad_bottom;
-    int bias_term;
-
-    int weight_data_size;
-
-    // 0=none 1=relu 2=leakyrelu 3=clip 4=sigmoid
-    int activation_type;
-    ncnn::Mat activation_params;
-
-    // model
-    ncnn::Mat weight_data;
-    ncnn::Mat bias_data;
-};
-
-DEFINE_LAYER_CREATOR(DeformableConv2d)
-
-
-static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores, const char* param_path, const char* bin_path)
-{
     ncnn::Net model;
+    printf("num_threads=%d\n", model.opt.num_threads);
+    printf("use_packing_layout=%d\n", model.opt.use_packing_layout);
+    printf("use_fp16_packed=%d\n", model.opt.use_fp16_packed);
+    printf("use_fp16_storage=%d\n", model.opt.use_fp16_storage);
+    printf("use_fp16_arithmetic=%d\n", model.opt.use_fp16_arithmetic);
+    printf("use_shader_pack8=%d\n", model.opt.use_shader_pack8);
+    printf("use_image_storage=%d\n", model.opt.use_image_storage);
 
-    model.opt.use_vulkan_compute = true;
-
-//    model.register_custom_layer("DeformableConv2d", DeformableConv2d_layer_creator);
+    model.opt.use_vulkan_compute = false;
+    model.opt.use_packing_layout = false;
+    model.opt.use_packing_layout = true;
+    model.opt.use_sgemm_convolution = false;
+    model.opt.use_sgemm_convolution = true;
 
     model.load_param(param_path);
     model.load_model(bin_path);
@@ -331,12 +162,69 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores,
     const float norm_vals[3] = {1.0f/108.4f, 1.0f/117.3f, 1.0f/127.6f};
     in.substract_mean_normalize(mean_vals, norm_vals);
 
+    ncnn::Mat out;
+
     ncnn::Extractor ex = model.create_extractor();
 
     ex.input("images", in);
     print_shape(in, "images");
 
+    ex.extract("output", out);
+    print_shape(out, "output");
+    save_data(out, "output.txt");
+
+    return 0;
+}
+
+static int detect_aaa(const char* input_path, const int C, const int H, const int W, const char* param_path, const char* bin_path, const int use_packing_layout, const int use_sgemm_convolution)
+{
+//    opts[3].use_packing_layout = true;
+//    opts[3].use_fp16_packed = true;
+//    opts[3].use_fp16_storage = true;
+//    opts[3].use_fp16_arithmetic = false; // FIXME enable me
+//    opts[3].use_bf16_storage = false;
+//    opts[3].use_shader_pack8 = true;
+//    opts[3].use_image_storage = true;
+//    opts[3].blob_allocator = &g_blob_pool_allocator;
+//    opts[3].workspace_allocator = &g_workspace_pool_allocator;
+
+    ncnn::Net model;
+    printf("num_threads=%d\n", model.opt.num_threads);
+    printf("use_packing_layout=%d\n", model.opt.use_packing_layout);
+    printf("use_fp16_packed=%d\n", model.opt.use_fp16_packed);
+    printf("use_fp16_storage=%d\n", model.opt.use_fp16_storage);
+    printf("use_fp16_arithmetic=%d\n", model.opt.use_fp16_arithmetic);
+    printf("use_shader_pack8=%d\n", model.opt.use_shader_pack8);
+    printf("use_image_storage=%d\n", model.opt.use_image_storage);
+
+    model.opt.use_vulkan_compute = false;
+    model.opt.use_packing_layout = use_packing_layout;
+    model.opt.use_sgemm_convolution = use_sgemm_convolution;
+
+    model.load_param(param_path);
+    model.load_model(bin_path);
+
+    // get input.
+    FILE* fp = fopen(input_path, "rb");
+    if (!fp)
+    {
+        printf("fopen %s failed", input_path);
+        return -1;
+    }
+    ncnn::DataReaderFromStdio dr(fp);
+    ncnn::ModelBinFromDataReader mb(dr);
+    ncnn::Mat in0 = mb.load(C*H*W, 0);
+    fclose(fp);
+    in0 = in0.reshape(W, H, C);
+    pretty_print(in0);
+
     ncnn::Mat out;
+
+    ncnn::Extractor ex = model.create_extractor();
+
+    ex.input("images", in0);
+    print_shape(in0, "images");
+
     ex.extract("output", out);
     print_shape(out, "output");
     save_data(out, "output.txt");
@@ -347,25 +235,34 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores,
 
 int main(int argc, char** argv)
 {
-    if (argc != 4)
+
+    int func_id = atoi(argv[1]);
+    const char* imagepath = argv[2];
+
+
+    if (func_id == 0)
     {
-        fprintf(stderr, "Usage: %s [imagepath]\n", argv[0]);
-        return -1;
+        const char* param_path = argv[3];
+        const char* bin_path = argv[4];
+        cv::Mat m = cv::imread(imagepath, 1);
+        if (m.empty())
+        {
+            fprintf(stderr, "cv::imread %s failed\n", imagepath);
+            return -1;
+        }
+        detect_squeezenet(m, param_path, bin_path);
+    }else if (func_id == 1)
+    {
+        const char* param_path = argv[3];
+        const char* bin_path = argv[4];
+        int C = atoi(argv[5]);
+        int H = atoi(argv[6]);
+        int W = atoi(argv[7]);
+        int use_packing_layout = atoi(argv[8]);
+        int use_sgemm_convolution = atoi(argv[9]);
+        detect_aaa(imagepath, C, H, W, param_path, bin_path, use_packing_layout, use_sgemm_convolution);
     }
 
-    const char* imagepath = argv[1];
-    const char* param_path = argv[2];
-    const char* bin_path = argv[3];
-
-    cv::Mat m = cv::imread(imagepath, 1);
-    if (m.empty())
-    {
-        fprintf(stderr, "cv::imread %s failed\n", imagepath);
-        return -1;
-    }
-
-    std::vector<float> cls_scores;
-    detect_squeezenet(m, cls_scores, param_path, bin_path);
 
     return 0;
 }

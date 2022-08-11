@@ -649,6 +649,11 @@ class DeformableConvCPUKernel : public framework::OpKernel<T> {
                             mask_ = mask[data_mask_ptr + data_mask_hw_ptr]
                             h_im = h_in + i * dilation_h + offset_h
                             w_im = w_in + j * dilation_w + offset_w
+                            if oc == 0:
+                                print(offset_h)
+                                print(offset_w)
+                                print(mask_)
+                                print()
                             cond = h_im > -1 and w_im > -1 and h_im < H and w_im < W
                             if cond:
                                 # Bilinear
@@ -700,19 +705,12 @@ class DeformableConvCPUKernel : public framework::OpKernel<T> {
                                     if v4_cond:
                                         v4 = input[int(data_im_ptr + v4_pos)]
                                     val = w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4
-                                    print(v1)
-                                    print(v2)
-                                    print(v3)
-                                    print(v4)
-                                    print(w1)
-                                    print(w2)
-                                    print(w3)
-                                    print(w4)
+                                aaaaaaa = val * mask_
+                                # if h_col == 1 and w_col == 0 and oc == 0 and c_im == 0:
+                                #     print(aaaaaaa)
+                                #     print(weight[oc, c_im, i, j])
+                                #     print()
                                 sum += val * mask_ * weight[oc, c_im, i, j]
-                                print(val)
-                                print(mask_)
-                                print(weight[oc, c_im, i, j])
-                                print()
                                 data_im_ptr += H*W
                     output[output_hw_ptr] = sum
                     output_hw_ptr += out_H * out_W
@@ -807,149 +805,132 @@ class ConvNormLayer2(nn.Module):
         return offset, mask, out
 
 
-ch_in = 2
-ch_out = 2
+img_h = 2
+img_w = 2
+
+# img_h = 8
+# img_w = 8
+
+
+
+
+
+# ch_in = 3
+# ch_out = 64
+
+ch_in = 1
+ch_out = 1
+
+# ch_in = 1
+# ch_out = 4
+
+# ch_in = 1
+# ch_out = 8
+
+# ch_in = 1
+# ch_out = 16
+
+# ch_in = 4
+# ch_out = 1
+
+# ch_in = 4
+# ch_out = 4
+
+# ch_in = 4
+# ch_out = 8
+
+# ch_in = 4
+# ch_out = 16
+
+# ch_in = 8
+# ch_out = 1
+
+# ch_in = 8
+# ch_out = 4
+
+# ch_in = 8
+# ch_out = 8
+
+# ch_in = 8
+# ch_out = 16
+#
+# ch_in = 16
+# ch_out = 1
+#
+# ch_in = 16
+# ch_out = 4
+#
+# ch_in = 16
+# ch_out = 8
+#
+# ch_in = 16
+# ch_out = 16
+
+
+
+ch_in *= 3
+ch_out *= 3
+
 
 filter_size = 1
 stride = 1
 
 # filter_size = 1
 # stride = 2
-#
-# filter_size = 2
-# stride = 1
-#
+
+filter_size = 2
+stride = 1
+
 # filter_size = 2
 # stride = 2
-#
+
 # filter_size = 3
 # stride = 1
 
 # filter_size = 3
 # stride = 2
-#
+
 # filter_size = 4
 # stride = 1
-#
+
 # filter_size = 4
 # stride = 2
-#
+
 # filter_size = 5
 # stride = 1
-#
+
 # filter_size = 5
-# stride = 2
+# stride = 5
 
 
 model = ConvNormLayer2(ch_in, ch_out, filter_size=filter_size, stride=stride, dcn_v2=True)
-torch.nn.init.normal_(model.conv_offset.weight)
-torch.nn.init.normal_(model.conv_offset.bias)
-torch.nn.init.normal_(model.conv.weight)
-torch.nn.init.normal_(model.conv.bias)
-# torch.nn.init.normal_(model.norm.weight)
-# torch.nn.init.normal_(model.norm.bias)
-# torch.nn.init.normal_(model.norm.running_mean)
-# torch.nn.init.constant_(model.norm.running_var, 2.3)
 model.eval()
-# state_dict = torch.load('11.pth', map_location=torch.device('cpu'))
-# model.load_state_dict(state_dict)
+state_dict = torch.load('11.pth', map_location=torch.device('cpu'))
+model.load_state_dict(state_dict)
 
 
-# aaaaaaaaa = cv2.imread('my_test32.jpg')
-aaaaaaaaa = cv2.imread('my_test2_1.jpg')
-# aaaaaaaaa = cv2.imread('my_test2.jpg')
-aaaaaaaaa = aaaaaaaaa.astype(np.float32)
-
-mean = [117.3, 126.5, 130.2]
-std = [108.4, 117.3, 127.6]
-mean = np.array(mean)[np.newaxis, np.newaxis, :]
-std = np.array(std)[np.newaxis, np.newaxis, :]
-aaaaaaaaa -= mean
-aaaaaaaaa /= std
-
-
-x = torch.from_numpy(aaaaaaaaa)
-x = x.to(torch.float32)
-x = x.permute((2, 0, 1))
-x = torch.unsqueeze(x, 0)
-x.requires_grad_(False)
-x = x[:, :2, :, :]
+dic2 = np.load('11.npz')
+x = dic2['x']
+x = torch.from_numpy(x)
+x = torch.reshape(x, (1, ch_in, img_h, img_w))
 
 offset, mask, y = model(x)
 
-x = x.cpu().detach().numpy()
+xx = x.cpu().detach().numpy()[0]
 offset = offset.cpu().detach().numpy()
 mask = mask.cpu().detach().numpy()
 
 dcn_w = model.conv.weight.cpu().detach().numpy()
 dcn_b = model.conv.bias.cpu().detach().numpy()
-# deformableConvCPUKernel = DeformableConvCPUKernel()
-# deformableConvCPUKernel = DeformableConvCPUKernelv2()
-deformableConvCPUKernel = DeformableConvCPUKernelv3()
+
+
 deformableConvCPUKernel222 = DeformableConvCPUKernel_naive()
 
-
-ncnn_output = '../build/tests/input.txt'
-with open(ncnn_output, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip()
-line = line[:-1]
-ss = line.split(',')
-aaa = []
-for s in ss:
-    aaa.append(float(s))
-aaa = np.array(aaa).astype(np.float32)
-xx = np.reshape(aaa, x[0].shape)
-
-
-ncnn_output = '../build/tests/mask.txt'
-with open(ncnn_output, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip()
-line = line[:-1]
-ss = line.split(',')
-aaa = []
-for s in ss:
-    aaa.append(float(s))
-aaa = np.array(aaa).astype(np.float32)
-maskk = np.reshape(aaa, mask[0].shape)
-
-
-ncnn_output = '../build/tests/offset.txt'
-with open(ncnn_output, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip()
-line = line[:-1]
-ss = line.split(',')
-aaa = []
-for s in ss:
-    aaa.append(float(s))
-aaa = np.array(aaa).astype(np.float32)
-offsett = np.reshape(aaa, offset[0].shape)
-
-
-ncnn_output = '../build/tests/weight.txt'
-with open(ncnn_output, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip()
-line = line[:-1]
-ss = line.split(',')
-aaa = []
-for s in ss:
-    aaa.append(float(s))
-aaa = np.array(aaa).astype(np.float32)
-dcn_ww = np.reshape(aaa, dcn_w.shape)
-
-
-dcn_b *= 0
-
-# y2 = deformableConvCPUKernel(x[0], offset[0], mask[0], dcn_w, dcn_b, stride=stride)
-y2 = deformableConvCPUKernel(xx, offsett, maskk, dcn_ww, dcn_b, stride=stride)
-aaaaaaaaaaaaaaaaaaaaaaa = deformableConvCPUKernel222(xx, offsett, maskk, dcn_ww, dcn_b, stride=stride)
+y2 = deformableConvCPUKernel222(xx, offset, mask, dcn_w, dcn_b, stride=stride)
 
 
 # yy1 = y.cpu().detach().numpy()
-yy1 = aaaaaaaaaaaaaaaaaaaaaaa
+yy1 = dic2['y']
 yy2 = y2
 ddd = np.sum((yy1 - yy2) ** 2)
 print('ddd=%.9f' % ddd)

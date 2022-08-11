@@ -85,6 +85,8 @@ cd D://GitHub/ncnn2
 cd build
 cmake -G"NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=%cd%/install -DProtobuf_INCLUDE_DIR=D://protobuf-3.4.0/build/install/include -DProtobuf_LIBRARIES=D://protobuf-3.4.0/build/install/lib/libprotobuf.lib -DProtobuf_PROTOC_EXECUTABLE=D://protobuf-3.4.0/build/install/bin/protoc.exe -DOpenCV_DIR=D://opencv/build -DNCNN_VULKAN=ON ..
 
+nmake
+
 nmake install
 
 

@@ -2,11 +2,8 @@
 import numpy as np
 
 
-dic2 = np.load('11.npz')
-# offset = dic2['offset']
-# mask = dic2['mask']
+dic2 = np.load('01.npz')
 y2 = dic2['y']
-# y2 = mask
 
 ncnn_output = '../build/examples/output.txt'
 
@@ -21,9 +18,6 @@ for s in ss:
 y = np.array(y).astype(np.float32)
 y = np.reshape(y, y2.shape)
 print(y2.shape)
-
-# y = y[:, :, 1, 0]
-# y2 = y2[:, :, 1, 0]
 
 ddd = np.sum((y - y2) ** 2)
 print('ddd=%.9f' % ddd)

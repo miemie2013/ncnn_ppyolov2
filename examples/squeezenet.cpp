@@ -55,7 +55,7 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores,
     squeezenet.load_model(bin_path);
 
     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
-    pretty_print(in);
+//    pretty_print(in);
 
     const float mean_vals[3] = {104.f, 117.f, 123.f};
     in.substract_mean_normalize(mean_vals, 0);

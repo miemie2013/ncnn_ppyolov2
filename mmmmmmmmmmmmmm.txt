@@ -111,6 +111,94 @@ cd examples
 
 ../build/examples/squeezenet ../images/dog.jpg
 
+Linux中查看16进制权重文件
+cd my_tests
+hexdump -C 01.bin | more
+
+cd my_tests
+hexdump -C 01.ncnn.bin | more
+
+cd my_tests
+hexdump -C 01_pncnn.bin | more
+
+bin文件前32bit是标志位；卷积层的权重可以是float32(32bit)或float16(16bit)，但是卷积层的偏置只能是float32(32bit)
+pnnx导出的模型，卷积层的权重默认是float16(16bit)，前32bit默认是0x01306B47
+看modelbin.cpp
+
+
+调试每层的方法：开头加入头文件
+#include <iostream>
+
+层的forward()里加入
+    printf("-------------- Convolution_x86 --------------\n");
+    std::cout << this->name << std::endl;
+    printf("elempack=%d\n", elempack);
+    printf("-------------- __SSE2__ --------------\n");
+
+    if (oc==0 && aaaa==1)
+    {
+        printf("h_im=%f\n", h_im);
+        printf("w_im=%f\n", w_im);
+        printf("\n");
+    }
+这些代码。
+
+
+ubuntu, amd + 3060(6GB), 这台机支持__SSE2__、__AVX__，不支持__AVX512F__
+__SSE2__    支持 pack=4,1
+__AVX__     支持 pack=8,4,1
+__AVX512F__ 支持 pack=16,8,4,1
+
+
+
+------------------------------ ubuntu, amd + 3060(6GB), 不使用vulkan, 默认12线程 ------------------------------
+
+ppyoloe_crn_l_300e_coco, use_packing_layout=1, use_sgemm_convolution=1, 推理时间 avg = 340.15
+ppyoloe_crn_l_300e_coco, use_packing_layout=1, use_sgemm_convolution=0, 推理时间 avg = 363.04
+ppyoloe_crn_l_300e_coco, use_packing_layout=0, use_sgemm_convolution=1, 推理时间 avg = 313.78
+ppyoloe_crn_l_300e_coco, use_packing_layout=0, use_sgemm_convolution=0, 推理时间 avg = 972.89
+
+
+(实验1) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=1, 推理时间 avg = 398.29
+(实验2) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=0, 推理时间 avg = 523.38
+(实验3) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=1, 推理时间 avg = 413.42
+(实验4) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=0, 推理时间 avg = 2831.22
+
+
+(可变形卷积换成普通卷积推理时间)
+(实验5) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=1, 推理时间 avg = 397.74
+(实验6) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=0, 推理时间 avg = 407.44
+(实验7) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=1, 推理时间 avg = 391.33
+(实验8) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=0, 推理时间 avg = 832.75
+
+对比实验5和实验6，推理时间几乎不变，再看实验1和实验2，DCN非常依赖im2col+MatMul，直接计算DCN会很慢;
+对比实验4和实验8，naive DCN(既不使用pack也不使用im2col+MatMul)是非常慢的;
+
+
+------------------------------------------------------------
+
+
+
+win10, i7-9700K + 2070(8GB), 这台机支持__SSE2__、__AVX__，不支持__AVX512F__
+__SSE2__    支持 pack=4,1
+__AVX__     支持 pack=8,4,1
+__AVX512F__ 支持 pack=16,8,4,1
+
+不使用vulkan, 使用opts[3], 8线程
+
+ppyoloe_crn_l_300e_coco 推理时间 357.05
+ppyolov2_r50vd_365e 推理时间 384.82
+ppyolov2_r50vd_365e 可变形卷积换成普通卷积推理时间 373.23
+
+
+
+
+(可变形卷积的实现)
+当是2x2卷积时，offset和mask是pack的形式，导致过不了测试用例。
+offset shape dims=3, C=1, D=1, H=1, W=1, elemsize=32, elempack=8, cstep=1
+mask shape dims=3, C=1, D=1, H=1, W=1, elemsize=16, elempack=4, cstep=1
+
+不要尝试把offset和mask还原成没有pack的形式，浪费时间。而是直接取出正确的offset和mask。
 
 
 
