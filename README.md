@@ -2,7 +2,7 @@
 # ncnn
 
 ## 概述
-ncnn实现PPYOLOv2和PPYOLO！这是ncnn第一个支持可变形卷积和MatrixNMS的模型，PPYOLO和PPYOLOv2的导出部署非常困难，因为它们使用了可变形卷积、MatrixNMS等对部署不太友好的算子。但现在咩酱在ncnn中实现了可变形卷积DCNv2、CoordConcat、PPYOLODecodeMatrixNMS等自定义层，使得使用ncnn部署PPYOLO和PPYOLOv2成为了可能！其中的[可变形卷积层](https://github.com/Tencent/ncnn/pull/4070) 也已经被合入ncnn官方仓库。
+ncnn实现PPYOLOv2和PPYOLO和PPYOLOE！这是ncnn第一个支持可变形卷积和MatrixNMS的模型，PPYOLO和PPYOLOv2的导出部署非常困难，因为它们使用了可变形卷积、MatrixNMS等对部署不太友好的算子。但现在咩酱在ncnn中实现了可变形卷积DCNv2、CoordConcat、PPYOLODecodeMatrixNMS等自定义层，使得使用ncnn部署PPYOLO和PPYOLOv2成为了可能！其中的[可变形卷积层](https://github.com/Tencent/ncnn/pull/4070) 也已经被合入ncnn官方仓库。
 
 开源摘星计划（WeOpen Star） 是由腾源会 2022 年推出的全新项目，旨在为开源人提供成长激励，为开源项目提供成长支持，助力开发者更好地了解开源，更快地跨越鸿沟，参与到开源的具体贡献与实践中。
 
