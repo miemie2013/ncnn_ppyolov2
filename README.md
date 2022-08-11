@@ -81,10 +81,13 @@ ppyoloe_crn_l_300e_coco, use_packing_layout=0, use_sgemm_convolution=0, 推理�
 ```
 
 结论：
+
 对比实验5和实验6，推理时间几乎不变，再看实验1和实验2，DCN非常依赖im2col+MatMul，直接计算DCN会很慢;
+
 对比实验4和实验8，naive DCN(既不使用pack也不使用im2col+MatMul)是非常慢的;
 
 Q：如何把ppyolov2_r50vd_365e的可变形卷积换成普通卷积？
+
 A：miemiedetection的exps/ppyolo/ppyolov2_r50vd_365e.py配置文件，修改self.backbone的dcn_v2_stages=[3]为dcn_v2_stages=[-1]，再按上面的步骤导出，把导出的ppyolov2_r50vd_365e.param、ppyolov2_r50vd_365e.bin复制到ncnn_ppyolov2的build/examples/目录下即可。
 
 
