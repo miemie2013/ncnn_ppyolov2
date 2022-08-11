@@ -37,6 +37,57 @@ cd build/examples
 test2_06_ppyolo_ncnn的源码位于ncnn_ppyolov2仓库的examples/test2_06_ppyolo_ncnn.cpp。PPYOLOv2和PPYOLO算法目前在Linux和Windows平台均已成功预测。
 
 
+## 测速
+
+输入以下命令测速
+
+```
+cd build/examples
+
+./test2_06_ppyolo_ncnn ../../my_tests/000000013659.jpg ppyolov2_r50vd_365e.param ppyolov2_r50vd_365e.bin 640 0 0 1 1
+
+./test2_06_ppyoloe_ncnn ../../my_tests/000000013659.jpg ppyoloe_crn_l_300e_coco.param ppyoloe_crn_l_300e_coco.bin 640 0 0 1 1
+
+```
+
+
+**参数解释:**
+
+- 倒数第4个参数=0表示最后不弹窗，=1表示最后弹窗；
+- 倒数第3个参数=0表示不使用vulkan，=1表示使用vulkan；
+- 倒数第2个参数表示use_packing_layout，即是否使用pack；
+- 倒数第1个参数表示use_sgemm_convolution，即是否使用im2col+MatMul卷积优化算法；
+
+以下是咩酱的一些测速结果：
+
+```
+# ubuntu, amd + 3060(6GB), 不使用vulkan, 默认12线程
+
+ppyoloe_crn_l_300e_coco, use_packing_layout=1, use_sgemm_convolution=1, 推理时间 avg = 340.15
+ppyoloe_crn_l_300e_coco, use_packing_layout=1, use_sgemm_convolution=0, 推理时间 avg = 363.04
+ppyoloe_crn_l_300e_coco, use_packing_layout=0, use_sgemm_convolution=1, 推理时间 avg = 313.78
+ppyoloe_crn_l_300e_coco, use_packing_layout=0, use_sgemm_convolution=0, 推理时间 avg = 972.89
+
+(实验1) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=1, 推理时间 avg = 398.29
+(实验2) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=0, 推理时间 avg = 523.38
+(实验3) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=1, 推理时间 avg = 413.42
+(实验4) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=0, 推理时间 avg = 2831.22
+
+(可变形卷积换成普通卷积推理时间)
+(实验5) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=1, 推理时间 avg = 397.74
+(实验6) ppyolov2_r50vd_365e, use_packing_layout=1, use_sgemm_convolution=0, 推理时间 avg = 407.44
+(实验7) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=1, 推理时间 avg = 391.33
+(实验8) ppyolov2_r50vd_365e, use_packing_layout=0, use_sgemm_convolution=0, 推理时间 avg = 832.75
+```
+
+结论：
+对比实验5和实验6，推理时间几乎不变，再看实验1和实验2，DCN非常依赖im2col+MatMul，直接计算DCN会很慢;
+对比实验4和实验8，naive DCN(既不使用pack也不使用im2col+MatMul)是非常慢的;
+
+Q：如何把ppyolov2_r50vd_365e的可变形卷积换成普通卷积？
+A：miemiedetection的exps/ppyolo/ppyolov2_r50vd_365e.py配置文件，修改self.backbone的dcn_v2_stages=[3]为dcn_v2_stages=[-1]，再按上面的步骤导出，把导出的ppyolov2_r50vd_365e.param、ppyolov2_r50vd_365e.bin复制到ncnn_ppyolov2的build/examples/目录下即可。
+
+
 ## 传送门
 
 算法1群：645796480（人已满） 
