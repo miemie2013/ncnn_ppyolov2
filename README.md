@@ -94,15 +94,18 @@ A：miemiedetection的exps/ppyolo/ppyolov2_r50vd_365e.py配置文件，修改sel
 ## 部署到其它电脑
 
 ppyoloe部署到其它电脑，需要：
-1.可执行文件test2_06_ppyoloe_ncnn.exe
-2.动态链接库D://opencv/build/x64/vc15/bin/opencv_world455.dll
-3.模型文件
 
-ppyoloe的一些测速结果（单位：毫秒/张）：
-win11、amd r5、rtx3060笔记本
-                       torch(cuda)   ncnn(cpu)   ncnn(vulkan)
-ppyoloe_s(640x640)        27            112           13
-ppyoloe_l(640x640)        37            339           25
+- 可执行文件test2_06_ppyoloe_ncnn.exe；
+- 动态链接库D://opencv/build/x64/vc15/bin/opencv_world455.dll；
+- 模型文件；
+
+ppyoloe的一些测速结果（win11、amd r5、rtx3060笔记本，单位：毫秒/张）：
+
+|         模型         | torch(cuda) | ncnn(cpu) |  ncnn(vulkan) |
+|:------------------:|:-----------:|:-------------:|:----------:|
+| ppyoloe_s(640x640) |     27      |         112          |       13        |
+| ppyoloe_l(640x640) |    37     |         339          |       25        |
+
 
 ## 传送门
 
