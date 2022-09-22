@@ -91,6 +91,19 @@ Q：如何把ppyolov2_r50vd_365e的可变形卷积换成普通卷积？
 A：miemiedetection的exps/ppyolo/ppyolov2_r50vd_365e.py配置文件，修改self.backbone的dcn_v2_stages=[3]为dcn_v2_stages=[-1]，再按上面的步骤导出，把导出的ppyolov2_r50vd_365e.param、ppyolov2_r50vd_365e.bin复制到ncnn_ppyolov2的build/examples/目录下即可。
 
 
+## 部署到其它电脑
+
+ppyoloe部署到其它电脑，需要：
+1.可执行文件test2_06_ppyoloe_ncnn.exe
+2.动态链接库D://opencv/build/x64/vc15/bin/opencv_world455.dll
+3.模型文件
+
+ppyoloe的一些测速结果（单位：毫秒/张）：
+win11、amd r5、rtx3060笔记本
+                       torch(cuda)   ncnn(cpu)   ncnn(vulkan)
+ppyoloe_s(640x640)        27            112           13
+ppyoloe_l(640x640)        37            339           25
+
 ## 传送门
 
 算法1群：645796480（人已满） 
