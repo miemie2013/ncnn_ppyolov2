@@ -48,6 +48,8 @@ cd build/examples
 
 ./test2_06_ppyoloe_ncnn ../../my_tests/000000013659.jpg ppyoloe_crn_l_300e_coco.param ppyoloe_crn_l_300e_coco.bin 640 0 0 1 1
 
+./test2_06_ppyoloe_ncnn ../../my_tests/000000000019.jpg ppyoloe_crn_s_300e_coco.param ppyoloe_crn_s_300e_coco.bin 640 0 0 1 1
+
 ```
 
 
